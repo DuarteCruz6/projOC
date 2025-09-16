@@ -63,7 +63,7 @@ int main() {
              *****************************************************************/
 
             /* Output to stdout */
-            double const mean_access_time = time_diff/n_iterations;
+            double const mean_access_time = (time_diff/n_iterations) * 1000000000;
 
             fprintf(stdout, "%zu\t%zu\t%lf\t%zu\t%zu\t%f\n", cache_size, stride,
                     time_diff, cycle_count, n_iterations,mean_access_time);
