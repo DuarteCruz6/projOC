@@ -24,7 +24,7 @@ double get_elapsed(struct timespec const *start) {
 int main() {
     uint8_t *array = calloc(CACHE_MAX, sizeof(uint8_t));
 
-    fputs("size\tstride\telapsed(s)\tcycles\n", stdout);
+    fputs("size\tstride\telapsed(s)\tcycles\t#accesses a[i]\t mean access time\n", stdout);
 
     for (size_t cache_size = CACHE_MIN; cache_size <= CACHE_MAX;
          cache_size = cache_size * 2) {
@@ -63,8 +63,10 @@ int main() {
              *****************************************************************/
 
             /* Output to stdout */
-            fprintf(stdout, "%zu\t%zu\t%lf\t%zu\n", cache_size, stride,
-                    time_diff, cycle_count);
+            double const mean_access_time = time_diff/n_iterations;
+
+            fprintf(stdout, "%zu\t%zu\t%lf\t%zu\t%zu\t%f\n", cache_size, stride,
+                    time_diff, cycle_count, n_iterations,mean_access_time);
         }
     }
 
