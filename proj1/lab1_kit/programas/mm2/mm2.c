@@ -10,20 +10,17 @@ void handle_error(char *outstring);
 void transpose(int16_t m[N][N], int16_t res[N][N]);
 
 void setup(int16_t m1[N][N], int16_t m2[N][N], int16_t m3[N][N]) {
-    int16_t tmp[N][N];
     memset(m3, 0, sizeof(int16_t) * N * N);
     for (size_t i = 0; i < N; ++i) {
         for (size_t j = 0; j < N; ++j) {
             m1[i][j] = (i + j) % 8 + 1;
-            tmp[i][j] = (N - i + j) % 8 + 1;
+            m2[i][j] = (N - i + j) % 8 + 1;
         }
     }
 
     /************************************/
     /*      MATRIX TRANSPOSITION        */
     /************************************/
-
-    transpose(tmp, m2);
 }
 
 void transpose(int16_t m[N][N], int16_t res[N][N]) {
@@ -103,13 +100,17 @@ int main() {
         handle_error("start");
     }
 
+    int16_t temp[N][N];
+
     /* Gets the starting time in clock cycles */
     long long const start_cycles = PAPI_get_real_cyc();
 
     /* Gets the starting time in microseconds */
     long long const start_usec = PAPI_get_real_usec();
 
-    multiply_matrices(mul1, mul2, res);
+    transpose(mul2, temp);
+
+    multiply_matrices(mul1, temp, res);
 
     /************************************/
 
