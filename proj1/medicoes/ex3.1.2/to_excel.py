@@ -16,7 +16,7 @@ with open(file_path, "r") as file:
         allInfo = line.strip().split()
         for index in range(len(allInfo)):
             info = allInfo[index]
-            #cache_size	stride	avg_misses
+            #cache_size	stride	avg_misses avg_time
             if index == 0:
                 #cache size
                 row.append(float(info[11:]))
@@ -26,8 +26,11 @@ with open(file_path, "r") as file:
             if index == 2:
                 #avg_misses
                 row.append(float(info[11:]))
+            if index == 3:    
+                #avg_time
+                row.append(float(info[9:])) 
             
         data.append(row)
         
-df = pd.DataFrame(data, columns=["cache size", "stride", "avg_misses"])
+df = pd.DataFrame(data, columns=["cache size", "stride", "avg_misses", "avg_time"])
 df.to_excel(output_path, index=False)
