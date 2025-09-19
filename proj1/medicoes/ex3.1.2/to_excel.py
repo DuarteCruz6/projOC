@@ -2,7 +2,7 @@ import os
 import pandas as pd
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(script_dir, "cm1.out")
+file_path = os.path.join(script_dir, "ex3.1.2_novo.out")
 output_path = os.path.join(script_dir, "dados.xlsx")
 
 if os.path.exists(output_path):

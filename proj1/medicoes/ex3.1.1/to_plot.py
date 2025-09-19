@@ -22,9 +22,11 @@ plt.title("Average Misses vs Stride")
 plt.xlabel("Stride")
 plt.ylabel("Average Misses")
 
+# Customize Y-axis: 0 → ymax with steps of 0.2
+ymin, ymax = plt.ylim()
+plt.yticks(np.arange(0, ymax + 0.2, 0.2))
 # Customize Y-axis: 0 → 1.0 with steps of 0.2
-plt.yticks(np.arange(0, 1.01, 0.2))
-plt.ylim(0, 1.0)
+#plt.ylim(0, 1.0)
 
 # Customize X-axis: 2^0 → 2^20 with steps 2^x
 x_ticks = [2**i for i in range(21)]
