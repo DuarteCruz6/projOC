@@ -1,6 +1,6 @@
 TARGETS = cm1
 PAPILIB_ALAMEDA=/run/current-system/sw/lib/libpapi.so
-PAPILIB_TAGUS=/usr/local/lib/libpapi.so
+PAPILIB_TAGUS=/usr/lib/x86_64-linux-gnu/libpapi.so
 
 all: $(TARGETS)
 
