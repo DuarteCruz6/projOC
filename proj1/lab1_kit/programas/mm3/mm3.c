@@ -5,12 +5,9 @@
 #include <string.h>
 
 #define N 512
-#define CACHE_LINE_SIZE 1 // TODO: update this value
+#define CACHE_LINE_SIZE 64
 
-#define SUB_MATRIX_SIZE                                                        \
-    (((CACHE_LINE_SIZE / sizeof(int16_t)) <= 0)                                \
-         ? 1                                                                   \
-         : (CACHE_LINE_SIZE / sizeof(int16_t)))
+#define SUB_MATRIX_SIZE (CACHE_LINE_SIZE / sizeof (short)) 
 
 void handle_error(char *outstring);
 
@@ -27,22 +24,22 @@ void setup(int16_t m1[N][N], int16_t m2[N][N], int16_t m3[N][N]) {
 void multiply_matrices_by_blocks(int16_t const factor1[N][N],
                                  int16_t const factor2[N][N],
                                  int16_t res[N][N]) {
-    for (size_t i = 0; i < N; i += SUB_MATRIX_SIZE) {
-        for (size_t j = 0; j < N; j += SUB_MATRIX_SIZE) {
-            for (size_t k = 0; k < N; k += SUB_MATRIX_SIZE) {
-                for (size_t inner_i = 0; inner_i < SUB_MATRIX_SIZE; ++inner_i) {
-                    for (size_t inner_k = 0; inner_k < SUB_MATRIX_SIZE;
-                         ++inner_k) {
-                        for (size_t inner_j = 0; inner_j < SUB_MATRIX_SIZE;
-                             ++inner_j) {
-                            res[i + inner_i][j + inner_j] +=
-                                factor1[i + inner_i][k + inner_k] *
-                                factor2[k + inner_k][j + inner_j];
-                        }
-                    }
-                }
-            }
-        }
+    for (size_t i = 0; i < N; i += SUB_MATRIX_SIZE) { 
+        for (size_t j = 0; j < N; j += SUB_MATRIX_SIZE) { 
+            for (size_t k = 0; k < N; k += SUB_MATRIX_SIZE) { 
+                for (size_t inner_i = 0; inner_i < SUB_MATRIX_SIZE; ++inner_i) { 
+                    for (size_t inner_k = 0; inner_k < SUB_MATRIX_SIZE; 
+                         ++inner_k) { 
+                        for (size_t inner_j = 0; inner_j < SUB_MATRIX_SIZE; 
+                             ++inner_j) { 
+                            res[i + inner_i][j + inner_j] += 
+                                factor1[i + inner_i][k + inner_k] * 
+                                factor2[k + inner_k][j + inner_j]; 
+                        } 
+                    } 
+                } 
+            } 
+        } 
     }
 }
 
@@ -71,6 +68,10 @@ int main() {
     if (PAPI_add_event(EventSet, PAPI_L1_DCM) != PAPI_OK) {
         handle_error("add_event");
     }
+    /* Add L2 data cache misses to the Event Set */
+    if (PAPI_add_event(EventSet, PAPI_L2_DCM) != PAPI_OK) {
+        handle_error("add_event");
+    }
     /* Add load instructions completed to the Event Set */
     if (PAPI_add_event(EventSet, PAPI_LD_INS) != PAPI_OK) {
         handle_error("add_event");
@@ -86,17 +87,19 @@ int main() {
     }
 
     /* Read the counting of events in the Event Set */
-    long long values[3];
+    long long values[4];
     if (PAPI_read(EventSet, values) != PAPI_OK) {
         handle_error("read");
     }
 
     fprintf(stdout, "After resetting counter 'PAPI_L1_DCM' [x10^6]: %f\n",
             (double)(values[0]) / 1000000);
-    fprintf(stdout, "After resetting counter 'PAPI_LD_INS' [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCM' [x10^6]: %f\n",
             (double)(values[1]) / 1000000);
-    fprintf(stdout, "After resetting counter 'PAPI_SR_INS' [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_LD_INS' [x10^6]: %f\n",
             (double)(values[2]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_SR_INS' [x10^6]: %f\n",
+            (double)(values[3]) / 1000000);
 
     /* Start counting events in the Event Set */
     if (PAPI_start(EventSet) != PAPI_OK) {
@@ -130,10 +133,12 @@ int main() {
 
     fprintf(stdout, "After stopping counter 'PAPI_L1_DCM'  [x10^6]: %f\n",
             (double)(values[0]) / 1000000);
-    fprintf(stdout, "After stopping counter 'PAPI_LD_INS'  [x10^6]: %f\n",
+    fprintf(stdout, "After stopping counter 'PAPI_L2_DCM'  [x10^6]: %f\n",
             (double)(values[1]) / 1000000);
-    fprintf(stdout, "After stopping counter 'PAPI_SR_INS'  [x10^6]: %f\n",
+    fprintf(stdout, "After stopping counter 'PAPI_LD_INS'  [x10^6]: %f\n",
             (double)(values[2]) / 1000000);
+    fprintf(stdout, "After stopping counter 'PAPI_SR_INS'  [x10^6]: %f\n",
+            (double)(values[3]) / 1000000);
 
     fprintf(stdout, "Wall clock cycles [x10^6]: %f\n",
             (double)(end_cycles - start_cycles) / 1000000);
