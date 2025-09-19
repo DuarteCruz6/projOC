@@ -1,0 +1,2 @@
+ex 2 -  a) ver se é suposto ter L1  ou n
+        d) N_ITERATIONS ??? tirar da formula ou nao
