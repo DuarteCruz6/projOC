@@ -1,0 +1,41 @@
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+excel_path = os.path.join(script_dir, "dados.xlsx")
+
+df = pd.read_excel(excel_path)
+
+df["cache size"] = pd.to_numeric(df["cache size"])
+df["stride"] = pd.to_numeric(df["stride"])
+df["avg_misses"] = pd.to_numeric(df["avg_misses"])
+
+plt.figure(figsize=(12, 6))
+
+for cache in df["cache size"].unique():
+    subset = df[df["cache size"] == cache]
+    plt.plot(subset["stride"], subset["avg_misses"], marker='o', label=f"Cache size {cache}")
+
+plt.title("Average Misses vs Stride")
+plt.xlabel("Stride")
+plt.ylabel("Average Misses")
+
+# Customize Y-axis: 0 → 1.0 with steps of 0.2
+plt.yticks(np.arange(0, 1.01, 0.2))
+plt.ylim(0, 1.0)
+
+# Customize X-axis: 2^0 → 2^20 with steps 2^x
+x_ticks = [2**i for i in range(21)]
+plt.xscale("log", base=2)
+plt.xticks(x_ticks, [f"2^{i}" for i in range(21)])
+
+plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+plt.legend()
+
+plot_path = os.path.join(script_dir, "plot.png")
+plt.savefig(plot_path)
+plt.show()
+
+print(f"Plot saved as: {plot_path}")
