@@ -65,7 +65,22 @@ int main() {
     }
 
     /* Add L1 data cache misses to the Event Set */
+    if (PAPI_add_event(EventSet, PAPI_L1_DCA) != PAPI_OK) {
+        handle_error("add_event");
+    }
+    if (PAPI_add_event(EventSet, PAPI_L1_DCH) != PAPI_OK) {
+        handle_error("add_event");
+    }
     if (PAPI_add_event(EventSet, PAPI_L1_DCM) != PAPI_OK) {
+        handle_error("add_event");
+    }
+    if (PAPI_add_event(EventSet, PAPI_L2_DCA) != PAPI_OK) {
+        handle_error("add_event");
+    }
+    if (PAPI_add_event(EventSet, PAPI_L2_DCH) != PAPI_OK) {
+        handle_error("add_event");
+    }
+    if (PAPI_add_event(EventSet, PAPI_L2_DCM) != PAPI_OK) {
         handle_error("add_event");
     }
     /* Add load instructions to the Event Set */
@@ -83,17 +98,29 @@ int main() {
     }
 
     /* Read the counting of events in the Event Set */
-    long long values[3];
+    long long values[8];
     if (PAPI_read(EventSet, values) != PAPI_OK) {
         handle_error("read");
     }
 
-    fprintf(stdout, "After resetting counter 'PAPI_L1_DCM' [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L1_DCA' [x10^6]: %f\n",
             (double)(values[0]) / 1000000);
-    fprintf(stdout, "After resetting counter 'PAPI_LD_INS' [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L1_DCH' [x10^6]: %f\n",
             (double)(values[1]) / 1000000);
-    fprintf(stdout, "After resetting counter 'PAPI_SR_INS' [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L1_DCM' [x10^6]: %f\n",
             (double)(values[2]) / 1000000);
+
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCA' [x10^6]: %f\n",
+            (double)(values[3]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCH' [x10^6]: %f\n",
+            (double)(values[4]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCM' [x10^6]: %f\n",
+            (double)(values[5]) / 1000000);
+    
+    fprintf(stdout, "After resetting counter 'PAPI_LD_INS' [x10^6]: %f\n",
+            (double)(values[6]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_SR_INS' [x10^6]: %f\n",
+            (double)(values[7]) / 1000000);
 
     /* Start counting events in the Event Set */
     if (PAPI_start(EventSet) != PAPI_OK) {
@@ -125,12 +152,24 @@ int main() {
         handle_error("stop");
     }
 
-    fprintf(stdout, "After stopping counter 'PAPI_L1_DCM'  [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L1_DCA' [x10^6]: %f\n",
             (double)(values[0]) / 1000000);
-    fprintf(stdout, "After stopping counter 'PAPI_LD_INS'  [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L1_DCH' [x10^6]: %f\n",
             (double)(values[1]) / 1000000);
-    fprintf(stdout, "After stopping counter 'PAPI_SR_INS'  [x10^6]: %f\n",
+    fprintf(stdout, "After resetting counter 'PAPI_L1_DCM' [x10^6]: %f\n",
             (double)(values[2]) / 1000000);
+
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCA' [x10^6]: %f\n",
+            (double)(values[3]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCH' [x10^6]: %f\n",
+            (double)(values[4]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_L2_DCM' [x10^6]: %f\n",
+            (double)(values[5]) / 1000000);
+    
+    fprintf(stdout, "After resetting counter 'PAPI_LD_INS' [x10^6]: %f\n",
+            (double)(values[6]) / 1000000);
+    fprintf(stdout, "After resetting counter 'PAPI_SR_INS' [x10^6]: %f\n",
+            (double)(values[7]) / 1000000);
 
     fprintf(stdout, "Wall clock cycles [x10^6]: %f\n",
             (double)(end_cycles - start_cycles) / 1000000);
