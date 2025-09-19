@@ -1,5 +1,5 @@
 TARGETS = spark
-CFLAGS =  -lrt
+CFLAGS =  -lrt -O3
 
 all: $(TARGETS)
 
