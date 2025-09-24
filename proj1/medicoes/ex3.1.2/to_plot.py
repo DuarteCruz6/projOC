@@ -15,8 +15,9 @@ df["avg_misses"] = pd.to_numeric(df["avg_misses"])
 plt.figure(figsize=(12, 6))
 
 for cache in df["cache size"].unique():
-    subset = df[df["cache size"] == cache]
-    plt.plot(subset["stride"], subset["avg_misses"], marker='o', label=f"Cache size {cache}")
+    if cache>32768:
+        subset = df[df["cache size"] == cache]
+        plt.plot(subset["stride"], subset["avg_misses"], marker='o', label=f"Cache size {cache}")
 
 plt.title("Average Misses vs Stride")
 plt.xlabel("Stride")

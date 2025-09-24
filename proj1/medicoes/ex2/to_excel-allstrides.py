@@ -3,7 +3,7 @@ import pandas as pd
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(script_dir, "ex2.out")
-output_path = os.path.join(script_dir, "dados.xlsx")
+output_path = os.path.join(script_dir, "all_data.xlsx")
 
 if os.path.exists(output_path):
     os.remove(output_path)

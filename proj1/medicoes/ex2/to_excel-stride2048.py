@@ -3,7 +3,7 @@ import pandas as pd
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(script_dir, "ex2 copy.out")
-output_path = os.path.join(script_dir, "dadoss.xlsx")
+output_path = os.path.join(script_dir, "dados-stride2048.xlsx")
 
 if os.path.exists(output_path):
     os.remove(output_path)
@@ -19,7 +19,7 @@ with open(file_path, "r") as file:
             row = []
             info = line.strip().split()
             #size	stride	elapsed(s)	cycles	#accesses a[i]	 mean access time
-            if int(info[1]) == 1:
+            if int(info[1]) == 2048:
                 row.append(float(info[0]))
                 row.append(float(info[2]))
                 row.append(float(info[4]))
