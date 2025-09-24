@@ -1,7 +1,6 @@
 Falta:
     - Imprimir gráficos e tabela -> ver proj1/graficos-e-merdas
     - Imprimir e fazer 1ª página
-    - Fazer a última páginas
     - Ver WorkStation Name para a pergunta 1
     - Tornar repositório + bonito (rever branch que existe e ver o que se quer ou nao)
 
