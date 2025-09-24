@@ -2,8 +2,8 @@ import os
 import pandas as pd
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(script_dir, "test.out")
-output_path = os.path.join(script_dir, "dados2.xlsx")
+file_path = os.path.join(script_dir, "test4.out")
+output_path = os.path.join(script_dir, "dados4.xlsx")
 
 if os.path.exists(output_path):
     os.remove(output_path)

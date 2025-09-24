@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-excel_path = os.path.join(script_dir, "dados4.xlsx")
+excel_path = os.path.join(script_dir, "dados.xlsx")
 
 df = pd.read_excel(excel_path)
 
@@ -15,7 +15,7 @@ df["avg_misses"] = pd.to_numeric(df["avg_misses"])
 plt.figure(figsize=(12, 6))
 
 for cache in df["cache size"].unique():
-    if cache>32768:
+    if cache <= 524288:
         subset = df[df["cache size"] == cache]
         plt.plot(subset["stride"], subset["avg_misses"], marker='o', label=f"Cache size {cache}")
 
@@ -30,14 +30,14 @@ plt.yticks(np.arange(0, ymax + 0.2, 0.2))
 #plt.ylim(0, 1.0)
 
 # Customize X-axis: 2^0 → 2^20 with steps 2^x
-x_ticks = [2**i for i in range(22)]
+x_ticks = [2**i for i in range(21)]
 plt.xscale("log", base=2)
-plt.xticks(x_ticks, [f"2^{i}" for i in range(22)])
+plt.xticks(x_ticks, [f"2^{i}" for i in range(21)])
 
 plt.grid(True, which="both", linestyle="--", linewidth=0.5)
 plt.legend()
 
-plot_path = os.path.join(script_dir, "plot.png")
+plot_path = os.path.join(script_dir, "plot-size128kb.png")
 plt.savefig(plot_path)
 plt.show()
 
