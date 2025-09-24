@@ -1,5 +1,5 @@
 Falta:
     - Imprimir gráficos e tabela
     - Imprimir e fazer 1ª página
-    - Fazer a última página
-    - Confirmar valores
+    - Fazer a última páginas
+    - Tornar repositório + bonito (rever branch que existe e ver o que se quer ou nao)
