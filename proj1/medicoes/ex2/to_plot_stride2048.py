@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-excel_path = os.path.join(script_dir, "dados-stride2048.xlsx")
+excel_path = os.path.join(script_dir, "all_data.xlsx")
 
 df = pd.read_excel(excel_path)
 

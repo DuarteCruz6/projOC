@@ -2,7 +2,7 @@ import os
 import pandas as pd
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(script_dir, "ex2 copy.out")
+file_path = os.path.join(script_dir, "spark.out")
 output_path = os.path.join(script_dir, "dados-stride2048.xlsx")
 
 if os.path.exists(output_path):
