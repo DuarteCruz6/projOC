@@ -87,9 +87,9 @@ tlb_entry_t* do_LRU_tlb_l1(){
 }
 
 //sets an entry
-void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access) {
+void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access, bool dirty) {
   entry -> valid = true;
-  entry -> dirty = false;
+  entry -> dirty = dirty;
   entry -> last_access = last_access;
   entry -> virtual_page_number = virtual_page_number;
   entry -> physical_page_number = physical_page_number;
@@ -97,23 +97,64 @@ void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physi
 
 
 void tlb_invalidate(va_t virtual_page_number) {
-  increment_time(TLB_L1_LATENCY_NS);
+  log_dbg("AUMENTATE");
   tlb_entry_t* tlb_entry = search_in_tlb_l1(virtual_page_number); //search for the entry
 
   if(tlb_entry){
     tlb_l1_invalidations++; 
     if(tlb_entry->dirty){
       //if its dirty, then it does write back
-      va_t physical_address = (tlb_entry->virtual_page_number << PAGE_SIZE_BITS) & VIRTUAL_ADDRESS_MASK;
-      write_back_tlb_entry(physical_address);
+      log_dbg("dirtyyyyy");
+      va_t replaced_entry = ((tlb_entry->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      write_back_tlb_entry(replaced_entry);
     }
 
     tlb_entry->valid = false;
     tlb_entry->dirty = false;
     log_dbg("Invalidated page %" PRIu64 "on Cache L1.", virtual_page_number);
+  }else{
+    log_dbg("NOT FOUND");
   }
 
   return;
+}
+
+pa_dram_t not_found_in_tlb_l1(va_t virtual_address, op_t op, va_t virtual_page_number){
+  tlb_l1_misses++;
+
+  bool newInfo = false;
+
+  if(op == OP_WRITE){
+    newInfo = true;
+  }
+
+  pa_dram_t physical_address = page_table_translate(virtual_address, op);
+  pa_dram_t physical_page_number = (physical_address >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
+
+  //check for space to insert this in L1
+  tlb_entry_t* tlb_entry = search_space_tlb_l1();
+
+  if(tlb_entry){
+    //found space to insert
+    set_tlb_entry(tlb_entry, virtual_page_number, physical_page_number, tlb_l1_hits + tlb_l1_misses, newInfo);
+
+    log_dbg("Cache L1 found space to insert (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
+           virtual_address, virtual_page_number, physical_address);
+
+  }else{
+    //didnt find space, do LRU
+    tlb_entry = do_LRU_tlb_l1();
+
+    if (tlb_entry -> dirty) {
+      //if it was changed while in tlb, do write back
+      va_t replaced_entry = ((tlb_entry->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      write_back_tlb_entry(replaced_entry);
+    }
+
+    set_tlb_entry(tlb_entry, virtual_page_number, physical_page_number, tlb_l1_hits + tlb_l1_misses, newInfo);
+  } 
+
+  return  physical_address;
 }
 
 
@@ -124,49 +165,23 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
 
   tlb_entry_t* tlb_entry = search_in_tlb_l1(virtual_page_number);
 
-  pa_dram_t physical_address;
-
-  if(tlb_entry){
-    //found in tlb_l1
-    tlb_l1_hits++;
-    tlb_entry->last_access = tlb_l1_hits + tlb_l1_misses; //updates last_access for LRU implementation
-
-    if(op == OP_WRITE){
-      tlb_entry->dirty = true;
-    }
-
-    physical_address = (tlb_entry->physical_page_number << PAGE_SIZE_BITS) | virtual_page_offset;
-
-    log_dbg("Cache L1 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
-            virtual_address, virtual_page_number, physical_address);
-
-  }else{
+  if(!tlb_entry){
     //not found in tlb_l1
-    tlb_l1_misses++;
-
-    physical_address = page_table_translate(virtual_address, op);
-    pa_dram_t physical_page_number = (physical_address >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
-
-    //check for space to insert this in L1
-    tlb_entry = search_space_tlb_l1();
-
-    if(tlb_entry){
-      //found space to insert
-      set_tlb_entry(tlb_entry, virtual_page_number, physical_page_number, tlb_l1_hits + tlb_l1_misses);
-
-    }else{
-      //didnt find space, do LRU
-      tlb_entry = do_LRU_tlb_l1();
-
-      if (tlb_entry -> dirty) {
-        //if it was changed while in tlb, do write back
-        va_t replaced_virtual_address = (tlb_entry -> virtual_page_number << PAGE_SIZE_BITS) & VIRTUAL_ADDRESS_MASK;
-        write_back_tlb_entry(replaced_virtual_address);
-      }
-
-      set_tlb_entry(tlb_entry, virtual_page_number, physical_page_number, tlb_l1_hits + tlb_l1_misses);
-    }
+    return not_found_in_tlb_l1(virtual_address, op, virtual_page_number);
   }
+ 
+  //found in tlb_l1
+  tlb_l1_hits++;
+  tlb_entry->last_access = tlb_l1_hits + tlb_l1_misses; //updates last_access for LRU implementation
+
+  if(op == OP_WRITE){
+    tlb_entry->dirty = true;
+  }
+
+  pa_dram_t physical_address = (tlb_entry->physical_page_number << PAGE_SIZE_BITS) | virtual_page_offset;
+
+  log_dbg("Cache L1 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
+          virtual_address, virtual_page_number, physical_address);
 
   return physical_address;
 }
