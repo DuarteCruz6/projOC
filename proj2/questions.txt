@@ -2,5 +2,4 @@
 - should it be called on the invalidate function?
 - shouldnt the invalidate function be called both on dirty and clean entries?
 - physical page number mask
-- replace pelo LRU conta para invalidations?
-- replace esta uma miseria
+- replace pelo LRU conta para invalidations? (acho q n)
