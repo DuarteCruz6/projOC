@@ -51,11 +51,57 @@ void tlb_init() {
   tlb_l2_invalidations = 0;
 }
 
+//returns the entry of tlb_l1 corresponding to the virtual page number
+tlb_entry_t* search_in_tlb_l1(va_t virtual_page_number){
+  increment_time(TLB_L1_LATENCY_NS);
+  for(int index = 0; index < TLB_L1_SIZE; index++){
+    if(tlb_l1[index].valid && tlb_l1[index].virtual_page_number==virtual_page_number){
+      return &tlb_l1[index];
+    }
+  }
+  return NULL;
+}
+
+//returns the 1st entry that is empty
+tlb_entry_t* search_space_tlb_l1(){
+  for(int index = 0; index < TLB_L1_SIZE; index++){
+    if(!tlb_l1[index].valid){
+      return &tlb_l1[index];
+    }
+  }
+  return NULL;
+}
+
+//returns the LRU entry
+tlb_entry_t* do_LRU_tlb_l1(){
+  uint64_t min_access = UINT64_MAX;
+  tlb_entry_t* entry = NULL;
+
+  for(int index = 0; index < TLB_L1_SIZE; index++){
+    if(tlb_l1[index].valid && tlb_l1[index].last_access<min_access){
+      min_access = tlb_l1[index].last_access;
+      entry = &tlb_l1[index];
+    }
+  }
+  return entry;
+}
+
+//sets an entry
+void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access) {
+  entry -> valid = true;
+  entry -> dirty = false;
+  entry -> last_access = last_access;
+  entry -> virtual_page_number = virtual_page_number;
+  entry -> physical_page_number = physical_page_number;
+}
+
+
 void tlb_invalidate(va_t virtual_page_number) {
   increment_time(TLB_L1_LATENCY_NS);
   tlb_entry_t* tlb_entry = search_in_tlb_l1(virtual_page_number); //search for the entry
 
   if(tlb_entry){
+    tlb_l1_invalidations++; 
     if(tlb_entry->dirty){
       //if its dirty, then it does write back
       va_t physical_address = (tlb_entry->virtual_page_number << PAGE_SIZE_BITS) & VIRTUAL_ADDRESS_MASK;
@@ -70,13 +116,6 @@ void tlb_invalidate(va_t virtual_page_number) {
   return;
 }
 
-void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access) {
-  entry -> valid = true;
-  entry -> dirty = false;
-  entry -> last_access = last_access;
-  entry -> virtual_page_number = virtual_page_number;
-  entry -> physical_page_number = physical_page_number;
-}
 
 pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   virtual_address &= VIRTUAL_ADDRESS_MASK;
@@ -118,7 +157,6 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
     }else{
       //didnt find space, do LRU
       tlb_entry = do_LRU_tlb_l1();
-      tlb_l1_invalidations++; 
 
       if (tlb_entry -> dirty) {
         //if it was changed while in tlb, do write back
@@ -131,44 +169,4 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   }
 
   return physical_address;
-}
-
-//returns the entry of tlb_l1 corresponding to the virtual page number
-tlb_entry_t* search_in_tlb_l1(va_t virtual_page_number){
-  increment_time(TLB_L1_LATENCY_NS);
-  for(int index = 0; index < TLB_L1_SIZE; index++){
-    if(tlb_l1[index].valid && tlb_l1[index].virtual_page_number==virtual_page_number){
-      return &tlb_l1[index];
-    }
-  }
-  return NULL;
-}
-
-//returns the 1st entry that is empty
-tlb_entry_t* search_space_tlb_l1(){
-  for(int index = 0; index < TLB_L1_SIZE; index++){
-    if(!tlb_l1[index].valid){
-      return &tlb_l1[index];
-    }
-  }
-  return NULL;
-}
-
-//returns the LRU entry
-tlb_entry_t* do_LRU_tlb_l1(){
-  int min_access = -1;
-  tlb_entry_t* entry = NULL;
-
-  for(int index = 0; index < TLB_L1_SIZE; index++){
-    if(tlb_l1[index].valid && min_access == -1){
-      //first iteration
-      min_access = tlb_l1[index].last_access;
-      entry = &tlb_l1[index];
-
-    }else if(tlb_l1[index].valid && tlb_l1[index].last_access<min_access){
-      min_access = tlb_l1[index].last_access;
-      entry = &tlb_l1[index];
-    }
-  }
-  return entry;
 }
