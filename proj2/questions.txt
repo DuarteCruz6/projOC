@@ -1,0 +1,6 @@
+- explain the write_back_tlb_entry function
+- should it be called on the invalidate function?
+- shouldnt the invalidate function be called both on dirty and clean entries?
+- physical page number mask
+- replace pelo LRU conta para invalidations?
+- replace esta uma miseria
