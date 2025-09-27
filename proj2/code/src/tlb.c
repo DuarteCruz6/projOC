@@ -134,7 +134,6 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
     set_tlb_entry(tlb_l1_empty_entry, virtual_page_number, physical_page_number, tlb_l1_hits + tlb_l1_misses);
   }
   else {
-    tlb_l1_invalidations++;
 
     if (tlb_l1_last_used_entry -> dirty) {
       va_t replaced_virtual_address = (tlb_l1_last_used_entry -> virtual_page_number << PAGE_SIZE_BITS) & VIRTUAL_ADDRESS_MASK;
