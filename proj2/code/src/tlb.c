@@ -132,12 +132,10 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
             break;
           }
         }
-
-      } else {
-
-        pa_dram_t replaced_entry = ((tlb_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-        write_back_tlb_entry(replaced_entry);
       }
+      
+      pa_dram_t replaced_entry = ((tlb_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      write_back_tlb_entry(replaced_entry);
     }
 
     set_tlb_entry(tlb_LRU_entry, virtual_page_number, physical_page_number, last_access, is_dirty);
@@ -187,7 +185,7 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
 }
 
 pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t tlb_l2_n_access,
-                        tlb_entry_t** tlb_l2_empty_entry, tlb_entry_t** tlb_l2_LRU_entry, bool* success) {
+                        tlb_entry_t** tlb_l2_empty_entry, tlb_entry_t** tlb_l2_LRU_entry, bool* success, bool* is_dirty) {
 
   increment_time(TLB_L2_LATENCY_NS);
 
@@ -208,6 +206,7 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
               virtual_address, virtual_page_number, translated_address);
 
       *success = true;
+      *is_dirty = tlb_l2[i].dirty;
       return translated_address;
     }
 
@@ -258,10 +257,10 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   tlb_entry_t* tlb_l2_LRU_entry = NULL;
 
   physical_add = search_tlb_l2(virtual_address, virtual_page_number, virtual_page_offset, 
-    op, tlb_l2_n_access, &tlb_l2_empty_entry, &tlb_l2_LRU_entry, &success);
+    op, tlb_l2_n_access, &tlb_l2_empty_entry, &tlb_l2_LRU_entry, &success, &is_dirty);
 
   if (success) {
-    // If there is a hit on L2 but a miss on L1, we had the entry to L1
+    // If there is a hit on L2 but a miss on L1, we add the entry to L1
     physical_page_number = (physical_add >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
     add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, tlb_l1_n_access, is_dirty);
 
@@ -273,8 +272,8 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   physical_add = page_table_translate(virtual_address, op) & DRAM_ADDRESS_MASK;
   physical_page_number = (physical_add >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
 
-  add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, tlb_l1_n_access, is_dirty);
   add_entry_to_tlb(false, tlb_l2_empty_entry, tlb_l2_LRU_entry, virtual_page_number, physical_page_number, tlb_l2_n_access, is_dirty);
+  add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, tlb_l1_n_access, is_dirty);
 
   return physical_add;
 }
