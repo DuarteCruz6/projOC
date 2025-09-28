@@ -202,7 +202,7 @@ tlb_entry_t* create_in_tlb_l1(op_t op, va_t virtual_page_number, pa_dram_t physi
 
 //invalidates an entry from L1 and L2 as well -> does writeback if dirty
 void tlb_invalidate(va_t virtual_page_number) {
-  bool dirty_l1;
+  bool dirty_l1 = false;
   tlb_entry_t* tlb_entry;
 
   tlb_entry = search_in_tlb_l1(virtual_page_number); //search for the entry in L1
