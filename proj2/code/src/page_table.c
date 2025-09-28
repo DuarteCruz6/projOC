@@ -183,8 +183,8 @@ pa_dram_t page_table_translate(va_t virtual_address, op_t op) {
   return translated_address;
 }
 
-void write_back_tlb_entry(va_t virtual_address) {
-  dram_access(virtual_address, OP_WRITE);
+void write_back_tlb_entry(pa_dram_t physical_address) {
+  dram_access(physical_address, OP_WRITE);
 }
 
 uint64_t get_total_page_faults() { return page_faults; }
