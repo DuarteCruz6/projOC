@@ -179,9 +179,8 @@ void tlb_invalidate(va_t virtual_page_number) {
   return;
 }
 
+//puts an entry on L2
 void put_on_tlb_l2(tlb_entry_t* tlb_entry_to_replace){
-  //puts an entry on L2
-  bool newInfo = false;
 
   //check for space to insert this in L2
   tlb_entry_t* tlb_entry = search_space_tlb_l2();
@@ -191,7 +190,7 @@ void put_on_tlb_l2(tlb_entry_t* tlb_entry_to_replace){
     //log_clk("Cache L2 found space to insert ( VPN=%" PRIx64 " PA=%" PRIx64 ")",
     //      tlb_entry_to_replace->virtual_page_number, tlb_entry_to_replace->physical_page_number);
 
-    set_tlb_entry(tlb_entry, tlb_entry_to_replace->virtual_page_number, tlb_entry_to_replace->physical_page_number, calculate_last_access(), newInfo);
+    set_tlb_entry(tlb_entry, tlb_entry_to_replace->virtual_page_number, tlb_entry_to_replace->physical_page_number, calculate_last_access(), tlb_entry_to_replace->dirty);
     return;
 
   }else{
@@ -212,7 +211,7 @@ void put_on_tlb_l2(tlb_entry_t* tlb_entry_to_replace){
     //log_clk("Cache L2 replacing ( VPN=%" PRIx64 " PA=%" PRIx64 ")",
     //      tlb_entry->virtual_page_number, tlb_entry->physical_page_number);
 
-    set_tlb_entry(tlb_entry, tlb_entry_to_replace->virtual_page_number, tlb_entry_to_replace->physical_page_number, calculate_last_access(), newInfo);
+    set_tlb_entry(tlb_entry, tlb_entry_to_replace->virtual_page_number, tlb_entry_to_replace->physical_page_number, calculate_last_access(), tlb_entry_to_replace->dirty);
   } 
 
 }
@@ -282,7 +281,7 @@ pa_dram_t found_in_tlb(bool found_in_l1, tlb_entry_t* tlb_entry, va_t virtual_ad
     //log_clk("Cache L2 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
     //    virtual_address, virtual_page_number, physical_address);
 
-    //remvoes from L2 and puts on L1 
+    //removes from L2 and puts on L1 
     tlb_entry->valid = false;
     tlb_entry->dirty = false;
     tlb_entry = put_on_tlb_l1(virtual_address, op, virtual_page_number);
