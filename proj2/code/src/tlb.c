@@ -139,8 +139,8 @@ tlb_entry_t* do_LRU_tlb_l2(){
 }
 
 
-
-void pass_to_tlb_l2(tlb_entry_t* entry){
+//puts a new entry on L2
+void put_on_tlb_l2(tlb_entry_t* entry){
   tlb_entry_t* entry_to_put_on = search_space_tlb_l2();
   
   if(entry_to_put_on){
@@ -176,9 +176,6 @@ void pass_to_tlb_l1(tlb_entry_t* entry){
   //there was no space left -> do LRU
   entry_to_put_on = do_LRU_tlb_l1();
 
-  //passes the old entry to L2
-  pass_to_tlb_l2(entry_to_put_on);
-
   //updates the entry with the new values
   set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,entry->last_access,entry->dirty);
 
@@ -196,9 +193,6 @@ tlb_entry_t* create_in_tlb_l1(op_t op, va_t virtual_page_number, pa_dram_t physi
 
   //there was no space left -> do LRU
   entry_to_put_on = do_LRU_tlb_l1();
-
-  //passes the old entry to L2
-  pass_to_tlb_l2(entry_to_put_on);
 
   //updates the entry with the new values
   set_tlb_entry(entry_to_put_on,virtual_page_number,physical_page_number,calculate_last_access(),(op==OP_WRITE));
@@ -289,7 +283,7 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   pa_dram_t physical_page_number = (physical_address >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
 
   tlb_entry = create_in_tlb_l1(op, virtual_page_number, physical_page_number); //put on L1
-  pass_to_tlb_l2(tlb_entry); //put on L2
+  put_on_tlb_l2(tlb_entry); //put on L2
 
   return physical_address;
 
