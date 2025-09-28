@@ -65,7 +65,9 @@ void tlb_invalidate(va_t virtual_page_number) {
       
       // i don't know if this check is needed, this function is only called when the entry is dirty, but it shouldn't be necessary
       if (tlb_l1[i].dirty) {
-        write_back_tlb_entry(virtual_page_number);
+        pa_dram_t replaced_entry = (tlb_l1[i].physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+
+        write_back_tlb_entry(replaced_entry);
       }
       
       log_dbg("Invalidated page %" PRIu64 " on Cache L1.", virtual_page_number);
@@ -84,17 +86,10 @@ void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physi
   entry -> physical_page_number = physical_page_number;
 }
 
-pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
+pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t tlb_l1_n_access,
+                        tlb_entry_t** tlb_l1_empty_entry, tlb_entry_t** tlb_l1_LRU_entry, bool* success) {
 
-  virtual_address &= VIRTUAL_ADDRESS_MASK;
-  va_t virtual_page_offset = virtual_address & PAGE_OFFSET_MASK;
-  va_t virtual_page_number = (virtual_address >> PAGE_SIZE_BITS) & PAGE_INDEX_MASK;
-
-  // Check in Cache L1
   increment_time(TLB_L1_LATENCY_NS);
-  tlb_entry_t* tlb_l1_empty_entry = NULL;
-  tlb_entry_t* tlb_l1_LRU_entry = NULL;
-  uint64_t tlb_l1_n_access = tlb_l1_hits + tlb_l1_misses + 1;
 
   for (size_t i = 0; i < TLB_L1_SIZE; i++)
   {
@@ -112,29 +107,53 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
       log_dbg("Cache L1 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
               virtual_address, virtual_page_number, translated_address);
 
+      *success = true;
       return translated_address;
     }
 
-    else if (!tlb_l1_empty_entry) {
+    else if (!*tlb_l1_empty_entry) {
       // Get empty entry
       if (!tlb_l1[i].valid) {
-        tlb_l1_empty_entry = &tlb_l1[i];
+        *tlb_l1_empty_entry = &tlb_l1[i];
       }
       // Get oldest access entry
-      else if (!tlb_l1_LRU_entry || tlb_l1[i].last_access < tlb_l1_LRU_entry -> last_access) {
-        tlb_l1_LRU_entry = &tlb_l1[i];
+      else if (!*tlb_l1_LRU_entry || tlb_l1[i].last_access < (*tlb_l1_LRU_entry) -> last_access) {
+        *tlb_l1_LRU_entry = &tlb_l1[i];
       }
     }
   }
+
   tlb_l1_misses++;
+  *success = false;
+  return 0;
+}
+
+pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
+
+  pa_dram_t physical_add;
+  virtual_address &= VIRTUAL_ADDRESS_MASK;
+  va_t virtual_page_offset = virtual_address & PAGE_OFFSET_MASK;
+  va_t virtual_page_number = (virtual_address >> PAGE_SIZE_BITS) & PAGE_INDEX_MASK;
+  bool success;
+
+  // Check in Cache L1
+
+  uint64_t tlb_l1_n_access = tlb_l1_hits + tlb_l1_misses + 1;
+  tlb_entry_t* tlb_l1_empty_entry = NULL;
+  tlb_entry_t* tlb_l1_LRU_entry = NULL;
+
+  physical_add = search_tlb_l1(virtual_address, virtual_page_number, virtual_page_offset, op, tlb_l1_n_access, &tlb_l1_empty_entry, &tlb_l1_LRU_entry, &success);
+
+  if (success)
+    return physical_add;
 
   // Check in Cache L2
-  //
-  // TODO
 
-  pa_dram_t physical_add = page_table_translate(virtual_address, op) & DRAM_ADDRESS_MASK;
+
+  // Search in Page Table
+  physical_add = page_table_translate(virtual_address, op) & DRAM_ADDRESS_MASK;
   pa_dram_t physical_page_number = (physical_add >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
-  bool is_dirty = op == OP_WRITE;
+  bool is_dirty = (op == OP_WRITE);
 
   if (tlb_l1_empty_entry) {
     set_tlb_entry(tlb_l1_empty_entry, virtual_page_number, physical_page_number, tlb_l1_n_access, is_dirty);
@@ -142,7 +161,7 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   else {
 
     if (tlb_l1_LRU_entry -> dirty) {
-      va_t replaced_entry = ((tlb_l1_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      pa_dram_t replaced_entry = ((tlb_l1_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
 
       write_back_tlb_entry(replaced_entry);
     }
