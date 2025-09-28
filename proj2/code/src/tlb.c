@@ -176,6 +176,11 @@ void pass_to_tlb_l1(tlb_entry_t* entry){
   //there was no space left -> do LRU
   entry_to_put_on = do_LRU_tlb_l1();
 
+  //if dirty, update L2 entry corresponding to the LRU entry
+  if(entry_to_put_on->dirty){
+    search_in_tlb_l2(entry_to_put_on->virtual_page_number)->dirty = true;
+  }
+
   //updates the entry with the new values
   set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,entry->last_access,entry->dirty);
 
@@ -193,6 +198,11 @@ tlb_entry_t* create_in_tlb_l1(op_t op, va_t virtual_page_number, pa_dram_t physi
 
   //there was no space left -> do LRU
   entry_to_put_on = do_LRU_tlb_l1();
+
+  //if dirty, update L2 entry corresponding to the LRU entry
+  if(entry_to_put_on->dirty){
+    search_in_tlb_l2(entry_to_put_on->virtual_page_number)->dirty = true;
+  }
 
   //updates the entry with the new values
   set_tlb_entry(entry_to_put_on,virtual_page_number,physical_page_number,calculate_last_access(),(op==OP_WRITE));
@@ -222,7 +232,7 @@ void tlb_invalidate(va_t virtual_page_number) {
 
     //if dirty, then it does write back
     if((tlb_entry->dirty || dirty_l1)){
-      va_t replaced_entry = ((tlb_entry->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      pa_dram_t replaced_entry = ((tlb_entry->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
       write_back_tlb_entry(replaced_entry);
     }
 
@@ -266,6 +276,10 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
     //we found it in L2
     tlb_l2_hits++;
     tlb_entry->last_access = calculate_last_access();
+    if(!tlb_entry->dirty){
+      //updates the dirty bit if op=write and it wasnt dirty before
+      tlb_entry->dirty = (op==OP_WRITE);
+    }
     
     //put it on L1
     pass_to_tlb_l1(tlb_entry);
