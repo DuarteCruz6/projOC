@@ -51,10 +51,8 @@ void tlb_init() {
   tlb_l2_invalidations = 0;
 }
 
-uint64_t calculate_last_access(bool is_l1){
-  if (is_l1) return tlb_l1_hits + tlb_l1_misses;
-
-  return tlb_l2_hits + tlb_l2_misses;
+uint64_t calculate_last_access(){
+  return tlb_l1_hits + tlb_l1_misses + tlb_l2_hits + tlb_l2_misses;
 }
 
 //sets an entry
@@ -143,68 +141,68 @@ tlb_entry_t* do_LRU_tlb_l2(){
 //puts from L2 to L1
 void pass_to_tlb_l1(tlb_entry_t* entry){
   tlb_entry_t* entry_to_put_on = search_space_tlb_l1();
-  bool is_l1 = true;
 
   if(entry_to_put_on){
     //there was space left
-    set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(is_l1),entry->dirty);
+    set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(),entry->dirty);
     return;
   }
 
   //there was no space left -> do LRU
   entry_to_put_on = do_LRU_tlb_l1();
+  bool add_time = false;
+  search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->last_access = entry_to_put_on->last_access;
 
   //if dirty, update L2 entry corresponding to the LRU entry without adding time and does write-back L1
   if(entry_to_put_on->dirty){
-    bool add_time = false;
     search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->dirty = true;
-    pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-    write_back_tlb_entry(entry_old_address);
+    //pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+    //write_back_tlb_entry(entry_old_address);
 
-    log_dbg("***** TLB L1 write back VPN=%" PRIu64 " *****",entry_to_put_on->virtual_page_number);
+    log_dbg("***** TLB L1 write back PPN=%"PRIu64 " VPN=%" PRIu64 " *****",entry_to_put_on->physical_page_number,entry_to_put_on->virtual_page_number);
   }
 
   //updates the entry with the new values
-  set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(is_l1),entry->dirty);
+  set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(),entry->dirty);
 
 }
 
 //puts a new entry from L2 on L1
 void put_on_tlb_l1(tlb_entry_t* entry){
   tlb_entry_t* entry_to_put_on = search_space_tlb_l1();
-  bool is_l1 = true;
   
   if(entry_to_put_on){
     //there was space left
-    set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(is_l1),entry->dirty);
+    set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(),entry->dirty);
     return;
   }
 
   //there was no space left -> do LRU
   entry_to_put_on = do_LRU_tlb_l1();
+  bool add_time = false;
+  search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->last_access = entry_to_put_on->last_access;
 
   //if dirty, update L2 entry corresponding to the LRU entry without adding time and does write-back L1
   if(entry_to_put_on->dirty){
-    bool add_time = false;
     search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->dirty = true;
-    pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-    write_back_tlb_entry(entry_old_address);
-    log_dbg("***** TLB L1 write back VPN=%" PRIu64 " *****",entry_to_put_on->virtual_page_number);
+    
+    //pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+    //write_back_tlb_entry(entry_old_address);
+    //log_dbg("***** TLB L1 write back PPN=%"PRIu64 " VPN=%" PRIu64 " *****",entry_to_put_on->physical_page_number,entry_to_put_on->virtual_page_number);
   }
 
   //updates the entry with the new values
-  set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(is_l1),entry->dirty);
+  set_tlb_entry(entry_to_put_on,entry->virtual_page_number,entry->physical_page_number,calculate_last_access(),entry->dirty);
   
 }
 
 //creates a new entry on L2
 tlb_entry_t* create_in_tlb_l2(op_t op, va_t virtual_page_number, pa_dram_t physical_page_number){
   tlb_entry_t* entry_to_put_on = search_space_tlb_l2();
-  bool is_l1 = false;
 
   if(entry_to_put_on){
     //there was space left
-    set_tlb_entry(entry_to_put_on,virtual_page_number,physical_page_number,calculate_last_access(is_l1),(op==OP_WRITE));
+    set_tlb_entry(entry_to_put_on,virtual_page_number,physical_page_number,calculate_last_access(),(op==OP_WRITE));
     return entry_to_put_on;
   }
 
@@ -215,11 +213,11 @@ tlb_entry_t* create_in_tlb_l2(op_t op, va_t virtual_page_number, pa_dram_t physi
   if(entry_to_put_on->dirty){
     pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
     write_back_tlb_entry(entry_old_address);
-    log_dbg("***** TLB L2 write back VPN=%" PRIu64 " *****",entry_to_put_on->virtual_page_number);
+    log_dbg("***** TLB L2 write back PPN=%"PRIu64 " VPN=%" PRIu64 " *****",entry_to_put_on->physical_page_number,entry_to_put_on->virtual_page_number);
   }
 
   //updates the entry with the new values
-  set_tlb_entry(entry_to_put_on,virtual_page_number,physical_page_number,calculate_last_access(is_l1),(op==OP_WRITE));
+  set_tlb_entry(entry_to_put_on,virtual_page_number,physical_page_number,calculate_last_access(),(op==OP_WRITE));
   
   return entry_to_put_on;
 }
@@ -255,7 +253,7 @@ void tlb_invalidate(va_t virtual_page_number) {
   //if dirty, then it does write back
   if((dirty)){
     write_back_tlb_entry(replaced_entry);
-    log_dbg("***** TLB L2 write back VPN=%" PRIu64 " *****",tlb_entry->virtual_page_number);
+    log_dbg("***** TLB L2 write back PPN=%" PRIu64 " VPN=%" PRIu64 " *****",tlb_entry->physical_page_number,tlb_entry->virtual_page_number);
   }
 
 }
@@ -267,7 +265,6 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
 
   tlb_entry_t* tlb_entry;
   pa_dram_t physical_address;
-  bool is_l1;
 
   //search in L1
   tlb_entry = search_in_tlb_l1(virtual_page_number);
@@ -276,8 +273,7 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
     //we found it in L1
     //log_clk("found in L1");
     tlb_l1_hits++;
-    is_l1 = true;
-    tlb_entry->last_access = calculate_last_access(is_l1);
+    tlb_entry->last_access = calculate_last_access();
     if(!tlb_entry->dirty){
       //updates the dirty bit if op=write and it wasnt dirty before
       tlb_entry->dirty = (op==OP_WRITE);
@@ -298,8 +294,7 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
     //we found it in L2
     //log_clk("found in L2");
     tlb_l2_hits++;
-    is_l1 = false;
-    tlb_entry->last_access = calculate_last_access(is_l1);
+    tlb_entry->last_access = calculate_last_access();
     if(!tlb_entry->dirty){
       //updates the dirty bit if op=write and it wasnt dirty before
       tlb_entry->dirty = (op==OP_WRITE);
