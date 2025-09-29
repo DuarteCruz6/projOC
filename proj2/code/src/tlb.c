@@ -132,10 +132,11 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
             break;
           }
         }
+      } else {
+        
+        pa_dram_t replaced_entry = ((tlb_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+        write_back_tlb_entry(replaced_entry);
       }
-      
-      pa_dram_t replaced_entry = ((tlb_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-      write_back_tlb_entry(replaced_entry);
     }
 
     set_tlb_entry(tlb_LRU_entry, virtual_page_number, physical_page_number, last_access, is_dirty);
