@@ -153,7 +153,7 @@ void pass_to_tlb_l1(tlb_entry_t* entry){
   bool add_time = false;
   search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->last_access = entry_to_put_on->last_access;
 
-  //if dirty, update L2 entry corresponding to the LRU entry without adding time and does write-back L1
+  //if dirty, update L2 entry corresponding to the LRU entry without adding time
   if(entry_to_put_on->dirty){
     search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->dirty = true;
   }
@@ -178,7 +178,7 @@ void put_on_tlb_l1(tlb_entry_t* entry){
   bool add_time = false;
   search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->last_access = entry_to_put_on->last_access;
 
-  //if dirty, update L2 entry corresponding to the LRU entry without adding time and does write-back L1
+  //if dirty, update L2 entry corresponding to the LRU entry without adding time
   if(entry_to_put_on->dirty){
     search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->dirty = true;
   }
