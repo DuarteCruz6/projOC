@@ -51,6 +51,19 @@ void tlb_init() {
   tlb_l2_invalidations = 0;
 }
 
+tlb_entry_t* get_entry(tlb_entry_t tlb[], uint64_t size, va_t virtual_page_number) {
+
+  for (size_t i = 0; i < size; i++)
+  {
+    if (tlb[i].valid && tlb[i].virtual_page_number == virtual_page_number) {
+
+      return &tlb[i];
+    }
+  }
+
+  return NULL;
+}
+
 void tlb_invalidate(va_t virtual_page_number) {
 
   bool is_dirty = false;
@@ -58,48 +71,41 @@ void tlb_invalidate(va_t virtual_page_number) {
 
   // Invalidate from cache L1
   increment_time(TLB_L1_LATENCY_NS);
+  tlb_entry_t* l1_entry = get_entry(tlb_l1, TLB_L1_SIZE, virtual_page_number);
+  
+  if (l1_entry) {
 
-  // search for the entry with the correct virtual page number
-  for (size_t i = 0; i < TLB_L1_SIZE; i++)
-  {
-    if (tlb_l1[i].valid && tlb_l1[i].virtual_page_number == virtual_page_number) {
+    l1_entry -> valid = false;
+    tlb_l1_invalidations++;
+    
+    if (l1_entry -> dirty) {
 
-      tlb_l1[i].valid = false;
-      tlb_l1_invalidations++;
-      
-      if (tlb_l1[i].dirty) {
-
-        is_dirty = true;
-        replaced_entry = (tlb_l1[i].physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-      }
-      
-      log_dbg("Invalidated page %" PRIu64 " on Cache L1.", virtual_page_number);
-      break;
+      is_dirty = true;
+      replaced_entry = (l1_entry -> physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
     }
+    
+    log_dbg("Invalidated page %" PRIu64 " on Cache L1.", virtual_page_number);
   }
 
   // Invalidate from cache L2
   increment_time(TLB_L2_LATENCY_NS);
+  tlb_entry_t* l2_entry = get_entry(tlb_l2, TLB_L2_SIZE, virtual_page_number);
 
-  // search for the entry with the correct virtual page number
-  for (size_t i = 0; i < TLB_L2_SIZE; i++)
-  {
-    if (tlb_l2[i].valid && tlb_l2[i].virtual_page_number == virtual_page_number) {
+  if (l2_entry) {
 
-      tlb_l2[i].valid = false;
-      tlb_l2_invalidations++;
-      
-      if (tlb_l2[i].dirty && !is_dirty) {
+    l2_entry -> valid = false;
+    tlb_l2_invalidations++;
+    
+    if (l2_entry -> dirty && !is_dirty) {
 
-        is_dirty = true;
-        replaced_entry = (tlb_l2[i].physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-      }
-      
-      log_dbg("Invalidated page %" PRIu64 " on Cache L2.", virtual_page_number);
-      break;
+      is_dirty = true;
+      replaced_entry = (l2_entry -> physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
     }
+    
+    log_dbg("Invalidated page %" PRIu64 " on Cache L2.", virtual_page_number);
   }
   
+  // Write back if necessary
   if (is_dirty)
     write_back_tlb_entry(replaced_entry);
 }
@@ -119,19 +125,17 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
     set_tlb_entry(tlb_empty_entry, virtual_page_number, physical_page_number, last_access, is_dirty);
   }
   else {
+    // Needs to replace LRU entry
 
     if (tlb_LRU_entry -> dirty) {
       
       if (is_L1) {
 
-        for (size_t i = 0; i < TLB_L2_SIZE; i++)
-        {
-          if (tlb_l2[i].valid && tlb_l2[i].virtual_page_number == tlb_LRU_entry -> virtual_page_number) {
+        tlb_entry_t* l2_entry = get_entry(tlb_l2, TLB_L2_SIZE, tlb_LRU_entry -> virtual_page_number);
 
-            tlb_l2[i].dirty = true;
-            break;
-          }
-        }
+        if (l2_entry)
+          l2_entry -> dirty = true;
+          
       } else {
         
         pa_dram_t replaced_entry = ((tlb_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
@@ -147,32 +151,36 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
                         tlb_entry_t** tlb_l1_empty_entry, tlb_entry_t** tlb_l1_LRU_entry, bool* success) {
 
   increment_time(TLB_L1_LATENCY_NS);
+  tlb_entry_t* l1_entry = get_entry(tlb_l1, TLB_L1_SIZE, virtual_page_number);
 
-  for (size_t i = 0; i < TLB_L1_SIZE; i++)
-  {
-    // Found page in TLB
-    if (tlb_l1[i].valid && tlb_l1[i].virtual_page_number == virtual_page_number) {
+  // If found in TLB
+  if (l1_entry) {
 
-      tlb_l1_hits++;
-      tlb_l1[i].last_access = tlb_l1_n_access;
+    tlb_l1_hits++;
+    l1_entry -> last_access = tlb_l1_n_access;
 
-      if (op == OP_WRITE) {
-        tlb_l1[i].dirty = true;
-      }
-
-      pa_dram_t translated_address = ((tlb_l1[i].physical_page_number << PAGE_SIZE_BITS) | virtual_page_offset) & DRAM_ADDRESS_MASK;
-      log_dbg("Cache L1 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
-              virtual_address, virtual_page_number, translated_address);
-
-      *success = true;
-      return translated_address;
+    if (op == OP_WRITE) {
+      l1_entry -> dirty = true;
     }
 
-    else if (!*tlb_l1_empty_entry) {
+    pa_dram_t translated_address = ((l1_entry -> physical_page_number << PAGE_SIZE_BITS) | virtual_page_offset) & DRAM_ADDRESS_MASK;
+    log_dbg("Cache L1 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
+            virtual_address, virtual_page_number, translated_address);
+
+    *success = true;
+    return translated_address;
+  }
+
+  // Search for empty entry and LRU
+  for (size_t i = 0; i < TLB_L1_SIZE; i++)
+  {
+    if (!*tlb_l1_empty_entry) {
+
       // Get empty entry
       if (!tlb_l1[i].valid) {
         *tlb_l1_empty_entry = &tlb_l1[i];
       }
+
       // Get oldest access entry
       else if (!*tlb_l1_LRU_entry || tlb_l1[i].last_access < (*tlb_l1_LRU_entry) -> last_access) {
         *tlb_l1_LRU_entry = &tlb_l1[i];
@@ -189,33 +197,37 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
                         tlb_entry_t** tlb_l2_empty_entry, tlb_entry_t** tlb_l2_LRU_entry, bool* success, bool* is_dirty) {
 
   increment_time(TLB_L2_LATENCY_NS);
+  tlb_entry_t* l2_entry = get_entry(tlb_l2, TLB_L2_SIZE, virtual_page_number);
 
-  for (size_t i = 0; i < TLB_L2_SIZE; i++)
-  {
-    // Found page in TLB
-    if (tlb_l2[i].valid && tlb_l2[i].virtual_page_number == virtual_page_number) {
+  // If found in TLB
+  if (l2_entry) {
 
-      tlb_l2_hits++;
-      tlb_l2[i].last_access = tlb_l2_n_access;
+    tlb_l2_hits++;
+    l2_entry -> last_access = tlb_l2_n_access;
 
-      if (op == OP_WRITE) {
-        tlb_l2[i].dirty = true;
-      }
-
-      pa_dram_t translated_address = ((tlb_l2[i].physical_page_number << PAGE_SIZE_BITS) | virtual_page_offset) & DRAM_ADDRESS_MASK;
-      log_dbg("Cache L2 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
-              virtual_address, virtual_page_number, translated_address);
-
-      *success = true;
-      *is_dirty = tlb_l2[i].dirty;
-      return translated_address;
+    if (op == OP_WRITE) {
+      l2_entry -> dirty = true;
     }
 
-    else if (!*tlb_l2_empty_entry) {
+    pa_dram_t translated_address = ((l2_entry -> physical_page_number << PAGE_SIZE_BITS) | virtual_page_offset) & DRAM_ADDRESS_MASK;
+    log_dbg("Cache L2 found (VA=%" PRIx64 " VPN=%" PRIx64 " PA=%" PRIx64 ")",
+            virtual_address, virtual_page_number, translated_address);
+
+    *success = true;
+    *is_dirty = l2_entry -> dirty;
+    return translated_address;
+  }
+
+  // Search for empty entry and LRU
+  for (size_t i = 0; i < TLB_L2_SIZE; i++)
+  {
+    if (!*tlb_l2_empty_entry) {
+
       // Get empty entry
       if (!tlb_l2[i].valid) {
         *tlb_l2_empty_entry = &tlb_l2[i];
       }
+      
       // Get oldest access entry
       else if (!*tlb_l2_LRU_entry || tlb_l2[i].last_access < (*tlb_l2_LRU_entry) -> last_access) {
         *tlb_l2_LRU_entry = &tlb_l2[i];
