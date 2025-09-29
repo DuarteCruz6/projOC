@@ -156,10 +156,6 @@ void pass_to_tlb_l1(tlb_entry_t* entry){
   //if dirty, update L2 entry corresponding to the LRU entry without adding time and does write-back L1
   if(entry_to_put_on->dirty){
     search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->dirty = true;
-    //pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-    //write_back_tlb_entry(entry_old_address);
-
-    log_dbg("***** TLB L1 write back PPN=%"PRIu64 " VPN=%" PRIu64 " *****",entry_to_put_on->physical_page_number,entry_to_put_on->virtual_page_number);
   }
 
   //updates the entry with the new values
@@ -185,10 +181,6 @@ void put_on_tlb_l1(tlb_entry_t* entry){
   //if dirty, update L2 entry corresponding to the LRU entry without adding time and does write-back L1
   if(entry_to_put_on->dirty){
     search_in_tlb_l2(entry_to_put_on->virtual_page_number, add_time)->dirty = true;
-    
-    //pa_dram_t entry_old_address = ((entry_to_put_on->physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
-    //write_back_tlb_entry(entry_old_address);
-    //log_dbg("***** TLB L1 write back PPN=%"PRIu64 " VPN=%" PRIu64 " *****",entry_to_put_on->physical_page_number,entry_to_put_on->virtual_page_number);
   }
 
   //updates the entry with the new values
@@ -271,7 +263,6 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
 
   if(tlb_entry){
     //we found it in L1
-    //log_clk("found in L1");
     tlb_l1_hits++;
     tlb_entry->last_access = calculate_last_access();
     if(!tlb_entry->dirty){
@@ -308,15 +299,12 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
 
   }
 
-  //log_clk("NOT found in L1 nor L2");
   //not found in L1 nor L2
   tlb_l2_misses++;
 
   //write in L1 and L2
   physical_address = page_table_translate(virtual_address, op);
   pa_dram_t physical_page_number = (physical_address >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
-
-
 
   tlb_entry = create_in_tlb_l2(op, virtual_page_number, physical_page_number); //put on L2
   put_on_tlb_l1(tlb_entry); //put on L1
