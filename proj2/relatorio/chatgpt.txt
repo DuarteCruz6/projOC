@@ -1,0 +1,49 @@
+Introdução
+
+No contexto dos sistemas operativos modernos, a utilização de memória virtual é essencial para garantir isolamento, segurança e eficiência na gestão de processos. Para traduzir endereços virtuais em endereços físicos, o sistema recorre a uma page table. No entanto, esta operação tem um custo elevado, pois implica aceder à memória principal sempre que ocorre uma tradução. Para mitigar este custo, recorre-se à Translation Lookaside Buffer (TLB), que funciona como uma cache especializada para traduções de endereços.
+
+O objetivo deste trabalho foi implementar uma TLB com dois níveis, de forma a simular o funcionamento real de arquiteturas modernas: um primeiro nível (L1), mais pequeno e rápido, e um segundo nível (L2), maior mas mais lento.
+
+Estrutura de Dados
+
+Cada entrada da TLB é representada por uma estrutura que contém:
+
+Virtual Page Number (VPN): número da página virtual.
+
+Physical Page Number (PPN): número da página física correspondente.
+
+Valid bit: indica se a entrada contém dados válidos.
+
+Dirty bit: indica se a página foi modificada.
+
+Last Access: usado para implementar a política de substituição.
+
+As TLBs L1 e L2 são representadas por arrays de entradas, inicialmente preenchidos com entradas inválidas. Esta escolha torna simples a pesquisa sequencial e a gestão das posições livres.
+
+Funcionamento
+
+Quando é recebido um endereço virtual, este é separado em duas partes: o número da página virtual (VPN) e o page offset. Apenas o VPN é traduzido pela TLB; o offset mantém-se inalterado e é combinado no final para obter o endereço físico completo.
+
+O processo de tradução segue a seguinte ordem:
+
+Pesquisa em L1: se existir uma entrada válida com o mesmo VPN, ocorre um hit em L1 e a tradução é imediata.
+
+Pesquisa em L2: se L1 falhar, verifica-se L2. Se houver hit, a tradução é devolvida e a entrada é também adicionada a L1, aproveitando a localidade temporal.
+
+Acesso à Page Table: se L1 e L2 falharem, recorre-se à page table. A tradução obtida é então adicionada a ambas as caches.
+
+Políticas de Substituição e Escrita
+
+Sempre que é necessário adicionar uma nova entrada a uma TLB, o algoritmo procura primeiro uma posição inválida. Caso não exista espaço, aplica-se a política Least Recently Used (LRU): é removida a entrada menos recentemente utilizada, medida através do campo last_access.
+
+Se a entrada a remover estiver marcada como dirty, é necessário escrever os dados de volta para a memória física antes de a substituir. Foi implementada a política de escrita write-back, onde as alterações são propagadas apenas no momento da remoção da entrada, reduzindo o número de acessos à memória.
+
+Invalidação
+
+As entradas da TLB podem tornar-se inválidas, por exemplo, quando uma página é removida da DRAM. Para lidar com isso, foi implementada uma operação de invalidação: tanto em L1 como em L2, a entrada correspondente é marcada como inválida, e caso esteja suja é feito o write-back para memória.
+
+Conclusão
+
+A implementação desenvolvida simula o funcionamento de uma TLB com dois níveis, incluindo gestão de hits e misses, substituição LRU, política de escrita write-back e invalidação. O código permite recolher estatísticas sobre acessos, falhas e invalidações, bem como contabilizar o impacto em termos de latência.
+
+Este projeto permitiu compreender de forma prática o funcionamento de mecanismos fundamentais em arquiteturas de computadores e a sua importância na eficiência dos sistemas de memória virtual.
