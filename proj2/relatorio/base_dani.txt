@@ -1,0 +1,33 @@
+- Estamos a trabalhar numa TLB
+Motivacao:
+- SO precisa de uma Page Table, para “traduzir” virtual addresses para physical addresses
+- Este processo tem um elevado custo (demora pa crl)
+- Cria-se uma TLB, uma “cache” para traduções
+- Inclusiva
+
+- A TLB armazena o virtual page number, o physical page number correspondente, entre outros dados que vamos falar
+- Isto permite procurar a entrada com o mesmo virtual page number, para descorbir a tradução
+- Apenas se traduz os page numbers. Ao receber um virtual address, traduzimos o page number, e os bits correspondentes ao page offset mantém-se na mesma posição para o physical address
+- Vamos criar dois níveis de caches, um mais pequeno e rápido, outro maior e lento
+-  Fully associative → explicar
+
+Vamos às caches para ver se encontramos o VPN que estamos à procura
+
+Hit na L1 é o melhor caso, não se acrescenta nada
+Quando há um miss na cache L1 mas hit na L2, acrescentamos à L1
+Quando há um miss nas caches, temos de ir à Page Table para obter a tradução, e acrescentamos o valor a ambas.
+
+Acrescentamos devido à ceninha de localidade temporal, fica mais rapido
+
+As caches são inicializadas com entradas invalidas (vazias)
+Para acrescentar um valor à cache, se a cache ainda tiver um espaço vazio (invalido) basta acrescentar nesse espaço
+Se tiver cheia, para acrescentar temos de remover o LRU
+Explicar o que é LRU e como medimos
+
+Ao remover um elemento, temos de verificar se está dirty
+Marcamos como dirty quando se escreve nessa página (aquilo escrito na cache será diferente do que está na memoria)
+Isto queria a necessidade de um write policy, usamos aqui write back → escrever o valor na memoria quando o valor é removido
+Isto permite escrever várias vezes na pagina enquanto ela esta na cache, mas só gastamos o custo associado a escrever na memoria quando a entrada é removida
+
+
+Para “invalidar” uma página na TLB (necessário quando evictamos a página da DRAM (a tradução da TLB não tem mais significado)), basta marcar a entrada na L1 e L2 como invalidas, e fzr o write back caso o dirty bit seja true
