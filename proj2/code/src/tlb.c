@@ -174,17 +174,15 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
   // Search for empty entry and LRU
   for (size_t i = 0; i < TLB_L1_SIZE; i++)
   {
-    if (!*tlb_l1_empty_entry) {
+    // Get empty entry
+    if (!tlb_l1[i].valid) {
+      *tlb_l1_empty_entry = &tlb_l1[i];
+      break;
+    }
 
-      // Get empty entry
-      if (!tlb_l1[i].valid) {
-        *tlb_l1_empty_entry = &tlb_l1[i];
-      }
-
-      // Get oldest access entry
-      else if (!*tlb_l1_LRU_entry || tlb_l1[i].last_access < (*tlb_l1_LRU_entry) -> last_access) {
-        *tlb_l1_LRU_entry = &tlb_l1[i];
-      }
+    // Get oldest access entry
+    else if (!*tlb_l1_LRU_entry || tlb_l1[i].last_access < (*tlb_l1_LRU_entry) -> last_access) {
+      *tlb_l1_LRU_entry = &tlb_l1[i];
     }
   }
 
@@ -221,17 +219,15 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
   // Search for empty entry and LRU
   for (size_t i = 0; i < TLB_L2_SIZE; i++)
   {
-    if (!*tlb_l2_empty_entry) {
-
-      // Get empty entry
-      if (!tlb_l2[i].valid) {
-        *tlb_l2_empty_entry = &tlb_l2[i];
-      }
-      
-      // Get oldest access entry
-      else if (!*tlb_l2_LRU_entry || tlb_l2[i].last_access < (*tlb_l2_LRU_entry) -> last_access) {
-        *tlb_l2_LRU_entry = &tlb_l2[i];
-      }
+    // Get empty entry
+    if (!tlb_l2[i].valid) {
+      *tlb_l2_empty_entry = &tlb_l2[i];
+      break;
+    }
+    
+    // Get oldest access entry
+    else if (!*tlb_l2_LRU_entry || tlb_l2[i].last_access < (*tlb_l2_LRU_entry) -> last_access) {
+      *tlb_l2_LRU_entry = &tlb_l2[i];
     }
   }
 
