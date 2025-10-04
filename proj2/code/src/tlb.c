@@ -40,6 +40,9 @@ uint64_t get_total_tlb_l2_hits() { return tlb_l2_hits; }
 uint64_t get_total_tlb_l2_misses() { return tlb_l2_misses; }
 uint64_t get_total_tlb_l2_invalidations() { return tlb_l2_invalidations; }
 
+/*
+  Initializes all TLB entries (L1 and L2) and resets statistics.
+*/
 void tlb_init() {
   memset(tlb_l1, 0, sizeof(tlb_l1));
   memset(tlb_l2, 0, sizeof(tlb_l2));
@@ -51,6 +54,9 @@ void tlb_init() {
   tlb_l2_invalidations = 0;
 }
 
+/*
+  Sets the fields of a TLB entry with the given translation data.
+*/
 void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access, bool is_dirty) {
   entry -> valid = true;
   entry -> dirty = is_dirty;
@@ -84,6 +90,25 @@ tlb_entry_t* get_entry(tlb_entry_t tlb[], uint64_t size, va_t virtual_page_numbe
   return NULL;
 }
 
+/*
+  Invalidates a translation in both the L1 and L2 TLBs for the given virtual page number (VPN).
+
+  - If found in L1:
+      - Marks the entry as invalid
+      - Increments tlb_l1_invalidations
+      - If the entry is dirty, records the physical page for write-back
+
+  - If found in L2:
+      - Marks the entry as invalid
+      - Increments tlb_l2_invalidations
+      - If the entry is dirty (and no prior dirty entry was recorded from L1),
+        records the physical page for write-back
+
+  - If any invalidated entry is dirty, performs a write-back of the corresponding physical page.
+
+  Parameters:
+    - virtual_page_number: VPN of the translation to invalidate
+*/
 void tlb_invalidate(va_t virtual_page_number) {
 
   bool is_dirty = false;
@@ -324,6 +349,30 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
   return 0;
 }
 
+
+/*
+  Translates a virtual address using the TLB hierarchy (L1 → L2 → Page Table).
+  If the operation is a Write, the dirty bit of the corresponding entry is set.
+
+  - If found in L1:
+      - Returns the translated physical address immediately
+
+  - If found in L2 but not in L1:
+      - Promotes the entry to L1
+      - Returns the translated physical address
+
+  - If not found in either TLB:
+      - Performs a page table translation
+      - Inserts the new entry into L2 and then into L1
+      - Returns the translated physical address
+
+  Parameters:
+    - virtual_address: the virtual address to translate
+    - op: operation type (Write or Read)
+
+  Returns:
+    - The translated physical address corresponding to the virtual address
+*/
 pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
 
   pa_dram_t physical_add;
