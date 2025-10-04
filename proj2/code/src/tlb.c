@@ -51,6 +51,26 @@ void tlb_init() {
   tlb_l2_invalidations = 0;
 }
 
+void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access, bool is_dirty) {
+  entry -> valid = true;
+  entry -> dirty = is_dirty;
+  entry -> last_access = last_access;
+  entry -> virtual_page_number = virtual_page_number;
+  entry -> physical_page_number = physical_page_number;
+}
+
+/*
+  Searches the TLB for a valid entry matching the given virtual page number (VPN).
+
+  Parameters:
+    - tlb: array of TLB entries
+    - size: number of entries in the TLB
+    - virtual_page_number: the VPN to search for
+
+  Returns:
+    - Pointer to the matching TLB entry if it exists
+    - NULL if no valid entry is found
+*/
 tlb_entry_t* get_entry(tlb_entry_t tlb[], uint64_t size, va_t virtual_page_number) {
 
   for (size_t i = 0; i < size; i++)
@@ -110,14 +130,24 @@ void tlb_invalidate(va_t virtual_page_number) {
     write_back_tlb_entry(replaced_entry);
 }
 
-void set_tlb_entry(tlb_entry_t* entry, va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access, bool is_dirty) {
-  entry -> valid = true;
-  entry -> dirty = is_dirty;
-  entry -> last_access = last_access;
-  entry -> virtual_page_number = virtual_page_number;
-  entry -> physical_page_number = physical_page_number;
-}
 
+/*
+  Updates a TLB with a new translation. If an empty entry exists, the new translation
+  is placed there. If the TLB is full, the Least Recently Used (LRU) entry is replaced. 
+
+  - For an L1 TLB: if the LRU entry is dirty, its dirty bit is propagated to the
+    corresponding entry in the L2 TLB (if present).
+  - For an L2 TLB: if the LRU entry is dirty, a write-back to memory is performed.
+
+  Parameters:
+    - is_L1: true if updating an L1 TLB, false if updating an L2 TLB
+    - tlb_empty_entry: pointer to an empty TLB entry, or NULL if none available
+    - tlb_LRU_entry: pointer to the Least Recently Used entry (used if no empty entry exists)
+    - virtual_page_number: VPN of the new translation
+    - physical_page_number: PPN of the new translation
+    - last_access: last access timestamp/counter for the new translation
+    - is_dirty: true if the access was a write, false if it was a read
+*/
 void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb_LRU_entry,
                       va_t virtual_page_number, pa_dram_t physical_page_number, uint64_t last_access, bool is_dirty) {
 
@@ -147,6 +177,34 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
   }
 }
 
+/*
+  Searches for a translation in the L1 TLB matching the given virtual page number (VPN).
+
+  - If found:
+      - Increments tlb_l1_hits
+      - Updates the entry's last_access counter
+      - Sets the dirty bit if the operation was a Write
+      - Returns the translated physical address
+
+  - If not found:
+      - Increments tlb_l1_misses
+      - Searches for an empty entry (if any) and identifies the LRU entry
+      - Updates the pointers to tlb_l1_empty_entry and tlb_l1_LRU_entry accordingly
+
+  Parameters:
+    - virtual_address: full virtual address that was translated
+    - virtual_page_number: VPN of the translation
+    - virtual_page_offset: offset within the virtual page
+    - op: operation type (Write or Read)
+    - tlb_l1_n_access: current access counter (l1_hits + l1_misses + 1)
+    - tlb_l1_empty_entry: output pointer to an empty entry in L1, or NULL if none
+    - tlb_l1_LRU_entry: output pointer to the Least Recently Used entry
+    - success: output flag, true if a matching entry was found, false otherwise
+
+  Returns:
+    - Translated physical address if the entry is found
+    - 0 if the entry is not found
+*/
 pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t tlb_l1_n_access,
                         tlb_entry_t** tlb_l1_empty_entry, tlb_entry_t** tlb_l1_LRU_entry, bool* success) {
 
@@ -191,6 +249,36 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
   return 0;
 }
 
+/*
+  Searches for a translation in the L2 TLB matching the given virtual page number (VPN).
+
+  - If found:
+      - Increments tlb_l2_hits
+      - Updates the entry's last_access counter
+      - Sets the dirty bit if the operation was a Write
+      - Updates the is_dirty flag with the entry's current dirty state
+      - Returns the translated physical address
+
+  - If not found:
+      - Increments tlb_l2_misses
+      - Searches for an empty entry (if any) and identifies the LRU entry
+      - Updates the pointers to tlb_l2_empty_entry and tlb_l2_LRU_entry accordingly
+
+  Parameters:
+    - virtual_address: full virtual address to translate
+    - virtual_page_number: VPN of the translation
+    - virtual_page_offset: offset within the virtual page
+    - op: operation type (Write or Read)
+    - tlb_l2_n_access: current access counter (l2_hits + l2_misses + 1)
+    - tlb_l2_empty_entry: output pointer to an empty entry in L2, or NULL if none
+    - tlb_l2_LRU_entry: output pointer to the Least Recently Used entry
+    - success: output flag, true if a matching entry was found, false otherwise
+    - is_dirty: output flag, reflects the dirty bit of the found entry (undefined if not found)
+
+  Returns:
+    - Translated physical address if the entry is found
+    - 0 if the entry is not found
+*/
 pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t tlb_l2_n_access,
                         tlb_entry_t** tlb_l2_empty_entry, tlb_entry_t** tlb_l2_LRU_entry, bool* success, bool* is_dirty) {
 
