@@ -40,6 +40,8 @@ uint64_t get_total_tlb_l2_hits() { return tlb_l2_hits; }
 uint64_t get_total_tlb_l2_misses() { return tlb_l2_misses; }
 uint64_t get_total_tlb_l2_invalidations() { return tlb_l2_invalidations; }
 
+uint64_t tlb_access = 0;
+
 
 /**
  * @brief Initializes all TLB entries (L1 and L2) and resets statistics.
@@ -53,6 +55,7 @@ void tlb_init() {
   tlb_l2_hits = 0;
   tlb_l2_misses = 0;
   tlb_l2_invalidations = 0;
+  tlb_access = 0;
 }
 
 
@@ -97,7 +100,7 @@ tlb_entry_t* get_entry(tlb_entry_t tlb[], uint64_t size, va_t virtual_page_numbe
 
 
 /**
- * @brief Invalidates an entry in both L1 and L2 TLBs for the given VPN.
+ * @brief Invalidates an entry in L1 or L2 TLBs for the given VPN.
  *
  * - If found in L1:
  *   - Marks the entry as invalid
@@ -107,13 +110,12 @@ tlb_entry_t* get_entry(tlb_entry_t tlb[], uint64_t size, va_t virtual_page_numbe
  * - If found in L2:
  *   - Marks the entry as invalid
  *   - Increments @c tlb_l2_invalidations
- *   - If dirty and not already written back from L1, schedules a write-back
+ *   - If dirty, schedules a write-back
  *
  * @param virtual_page_number VPN of the entry to invalidate
  */
 void tlb_invalidate(va_t virtual_page_number) {
 
-  bool is_dirty = false;
   pa_dram_t replaced_entry;
 
   // Invalidate from cache L1
@@ -126,12 +128,13 @@ void tlb_invalidate(va_t virtual_page_number) {
     tlb_l1_invalidations++;
     
     if (l1_entry -> dirty) {
-
-      is_dirty = true;
+      // Write back
       replaced_entry = (l1_entry -> physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      write_back_tlb_entry(replaced_entry);
     }
     
     log_dbg("Invalidated page %" PRIu64 " on Cache L1.", virtual_page_number);
+    //return;
   }
 
   // Invalidate from cache L2
@@ -142,19 +145,33 @@ void tlb_invalidate(va_t virtual_page_number) {
 
     l2_entry -> valid = false;
     tlb_l2_invalidations++;
-    
-    if (l2_entry -> dirty && !is_dirty) {
 
-      is_dirty = true;
+    if (l2_entry -> dirty) {
+      // Write back
       replaced_entry = (l2_entry -> physical_page_number << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
+      write_back_tlb_entry(replaced_entry);
+    }
+
+    log_dbg("Invalidated page %" PRIu64 " on Cache L2.", virtual_page_number);
+    
+  }
+}
+
+void get_to_replace_entry_tlb_l2(tlb_entry_t** tlb_l2_empty_entry, tlb_entry_t** tlb_l2_LRU_entry){
+  // Search for empty entry and LRU
+  for (size_t i = 0; i < TLB_L2_SIZE; i++)
+  {
+    // Get empty entry
+    if (!tlb_l2[i].valid) {
+      *tlb_l2_empty_entry = &tlb_l2[i];
+      break;
     }
     
-    log_dbg("Invalidated page %" PRIu64 " on Cache L2.", virtual_page_number);
+    // Get oldest access entry
+    else if (!*tlb_l2_LRU_entry || tlb_l2[i].last_access < (*tlb_l2_LRU_entry) -> last_access) {
+      *tlb_l2_LRU_entry = &tlb_l2[i];
+    }
   }
-  
-  // Write back if necessary
-  if (is_dirty)
-    write_back_tlb_entry(replaced_entry);
 }
 
 
@@ -162,7 +179,7 @@ void tlb_invalidate(va_t virtual_page_number) {
  * @brief Adds a new translation to the TLB.
  *
  * If an empty entry is available, it is used. Otherwise, the Least Recently Used (LRU) entry is replaced.
- * - If replacing an L1 entry that is dirty, marks the corresponding L2 entry as dirty if present.
+ * - If replacing an L1 entry, puts it to L2.
  * - If replacing an L2 entry that is dirty, writes back to memory.
  *
  * @param is_L1 True if adding to L1 TLB, False if adding to L2 TLB
@@ -182,19 +199,40 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
   else {
     // Needs to replace LRU entry
 
-    if (tlb_LRU_entry -> dirty) {
+    if(is_L1){
+      //puts the L1 LRU entry into L2
+
+      va_t old_vpn = tlb_LRU_entry->virtual_page_number;
+      pa_dram_t old_ppn = tlb_LRU_entry->physical_page_number;
+      uint64_t old_last_access = tlb_LRU_entry->last_access;
+      bool old_dirty = tlb_LRU_entry->dirty;
+
+      set_tlb_entry(tlb_LRU_entry, virtual_page_number, physical_page_number, last_access, is_dirty);
       
-      if (is_L1) {
+      tlb_entry_t* tlb_l2_empty_entry = NULL;
+      tlb_entry_t* tlb_l2_LRU_entry = NULL;
+      get_to_replace_entry_tlb_l2(&tlb_l2_empty_entry,&tlb_l2_LRU_entry);
 
-        tlb_entry_t* l2_entry = get_entry(tlb_l2, TLB_L2_SIZE, tlb_LRU_entry -> virtual_page_number);
+      add_entry_to_tlb(false, tlb_l2_empty_entry, tlb_l2_LRU_entry, old_vpn, 
+                      old_ppn, old_last_access, old_dirty);
 
-        if (l2_entry)
-          l2_entry -> dirty = true;
-          
-      } else {
-        
+      log_dbg("Evicting TLB L1 entry to TLB L2 (VPN=%" PRIx64 " PPN=%" PRIx64 " dirty=%d)",
+            tlb_LRU_entry->virtual_page_number, tlb_LRU_entry->physical_page_number, tlb_LRU_entry->dirty);
+
+      return;
+
+
+    }else{
+      //checks if the L2 LRU entry is dirty and does write back if necessary
+
+      log_dbg("Evicting TLB L2 entry (VPN=%" PRIx64 " PPN=%" PRIx64 " dirty=%d)",
+            tlb_LRU_entry->virtual_page_number, tlb_LRU_entry->physical_page_number, tlb_LRU_entry->dirty);
+
+
+      if(tlb_LRU_entry->dirty){
         pa_dram_t replaced_entry = ((tlb_LRU_entry -> physical_page_number) << PAGE_SIZE_BITS) & DRAM_ADDRESS_MASK;
         write_back_tlb_entry(replaced_entry);
+        log_dbg("***** TLB L2 write back *****")
       }
     }
 
@@ -220,13 +258,13 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
  * @param virtual_page_number VPN of the translation
  * @param virtual_page_offset Offset within the page
  * @param op Operation type (Read or Write)
- * @param tlb_l1_n_access Current access counter
+ * @param n_access Current access counter
  * @param tlb_l1_empty_entry Output pointer to an empty entry, or NULL if none
  * @param tlb_l1_LRU_entry Output pointer to the LRU entry
  * @param success Output flag, true if found, false otherwise
  * @return Translated physical address if found, 0 otherwise
  */
-pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t tlb_l1_n_access,
+pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t n_access,
                         tlb_entry_t** tlb_l1_empty_entry, tlb_entry_t** tlb_l1_LRU_entry, bool* success) {
 
   increment_time(TLB_L1_LATENCY_NS);
@@ -236,7 +274,7 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
   if (l1_entry) {
 
     tlb_l1_hits++;
-    l1_entry -> last_access = tlb_l1_n_access;
+    l1_entry -> last_access = n_access;
 
     if (op == OP_WRITE) {
       l1_entry -> dirty = true;
@@ -270,14 +308,12 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
   return 0;
 }
 
-
 /**
  * @brief Searches for an entry in the L2 TLB matching the given VPN.
  *
  * - If found:
  *   - Increments @c tlb_l2_hits
- *   - Updates the entry's last access counter
- *   - Sets the dirty bit if the operation is a write
+ *   - Removes the entry from TLB L2
  *   - Returns the translated physical address
  *
  * - If not found:
@@ -288,14 +324,14 @@ pa_dram_t search_tlb_l1(va_t virtual_address, va_t virtual_page_number, va_t vir
  * @param virtual_page_number VPN of the translation
  * @param virtual_page_offset Offset within the page
  * @param op Operation type (Read or Write)
- * @param tlb_l2_n_access Current access counter
+ * @param n_access Current access counter
  * @param tlb_l2_empty_entry Output pointer to an empty entry, or NULL if none
  * @param tlb_l2_LRU_entry Output pointer to the LRU entry
  * @param success Output flag, true if found, false otherwise
  * @param is_dirty Output flag, true if the found entry is dirty
  * @return Translated physical address if found, 0 otherwise
  */
-pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t tlb_l2_n_access,
+pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t virtual_page_offset, op_t op, uint64_t n_access,
                         tlb_entry_t** tlb_l2_empty_entry, tlb_entry_t** tlb_l2_LRU_entry, bool* success, bool* is_dirty) {
 
   increment_time(TLB_L2_LATENCY_NS);
@@ -305,7 +341,7 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
   if (l2_entry) {
 
     tlb_l2_hits++;
-    l2_entry -> last_access = tlb_l2_n_access;
+    l2_entry -> last_access = n_access;
 
     if (op == OP_WRITE) {
       l2_entry -> dirty = true;
@@ -317,6 +353,7 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
 
     *success = true;
     *is_dirty = l2_entry -> dirty;
+    l2_entry->valid = false; //removes the entry from L2
     return translated_address;
   }
 
@@ -349,11 +386,12 @@ pa_dram_t search_tlb_l2(va_t virtual_address, va_t virtual_page_number, va_t vir
  *
  * - If found in L2 but not L1:
  *   - Promotes the entry to L1
+ *   - Removes from L2
  *   - Returns the physical address
  *
  * - If not found in either:
  *   - Translates using the page table
- *   - Inserts the new entry into L2 and then into L1
+ *   - Inserts the new entry into L1
  *   - Returns the physical address
  *
  * If the operation is a write, the dirty bit is set in the corresponding entry.
@@ -375,29 +413,29 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
 
   // Check in Cache L1
 
-  uint64_t tlb_l1_n_access = tlb_l1_hits + tlb_l1_misses + 1;
+  uint64_t n_access = tlb_l1_hits + tlb_l1_misses + tlb_l2_hits + tlb_l2_misses + 1;
   tlb_entry_t* tlb_l1_empty_entry = NULL;
   tlb_entry_t* tlb_l1_LRU_entry = NULL;
 
   physical_add = search_tlb_l1(virtual_address, virtual_page_number, virtual_page_offset, 
-    op, tlb_l1_n_access, &tlb_l1_empty_entry, &tlb_l1_LRU_entry, &success);
+    op, n_access, &tlb_l1_empty_entry, &tlb_l1_LRU_entry, &success);
 
   if (success)
     return physical_add;
 
   // Check in Cache L2
 
-  uint64_t tlb_l2_n_access = tlb_l2_hits + tlb_l2_misses + 1;
+  n_access += 1;
   tlb_entry_t* tlb_l2_empty_entry = NULL;
   tlb_entry_t* tlb_l2_LRU_entry = NULL;
 
   physical_add = search_tlb_l2(virtual_address, virtual_page_number, virtual_page_offset, 
-    op, tlb_l2_n_access, &tlb_l2_empty_entry, &tlb_l2_LRU_entry, &success, &is_dirty);
+    op, n_access, &tlb_l2_empty_entry, &tlb_l2_LRU_entry, &success, &is_dirty);
 
   if (success) {
-    // If there is a hit on L2 but a miss on L1, we add the entry to L1
+    // If there is a hit on L2 but a miss on L1, we add the entry to L1 and we already removed it from L2
     physical_page_number = (physical_add >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
-    add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, tlb_l1_n_access, is_dirty);
+    add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, n_access, is_dirty);
 
     return physical_add;
   }
@@ -407,8 +445,9 @@ pa_dram_t tlb_translate(va_t virtual_address, op_t op) {
   physical_add = page_table_translate(virtual_address, op) & DRAM_ADDRESS_MASK;
   physical_page_number = (physical_add >> PAGE_SIZE_BITS) & PHYSICAL_PAGE_NUMBER_MASK;
 
-  add_entry_to_tlb(false, tlb_l2_empty_entry, tlb_l2_LRU_entry, virtual_page_number, physical_page_number, tlb_l2_n_access, is_dirty);
-  add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, tlb_l1_n_access, is_dirty);
+  //add_entry_to_tlb(false, tlb_l2_empty_entry, tlb_l2_LRU_entry, virtual_page_number, physical_page_number, n_access, is_dirty);  
+  add_entry_to_tlb(true, tlb_l1_empty_entry, tlb_l1_LRU_entry, virtual_page_number, physical_page_number, n_access, is_dirty);
+  
 
   return physical_add;
 }
