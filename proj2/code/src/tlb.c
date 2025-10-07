@@ -163,6 +163,7 @@ void tlb_invalidate(va_t virtual_page_number) {
  *
  * If an empty entry is available, it is used. Otherwise, the Least Recently Used (LRU) entry is replaced.
  * - If replacing an L1 entry that is dirty, marks the corresponding L2 entry as dirty if present.
+ *   If not, adds a new corresponding L2 entry as dirty.
  * - If replacing an L2 entry that is dirty, writes back to memory.
  *
  * @param is_L1 True if adding to L1 TLB, False if adding to L2 TLB
@@ -190,6 +191,30 @@ void add_entry_to_tlb(bool is_L1, tlb_entry_t* tlb_empty_entry, tlb_entry_t* tlb
 
         if (l2_entry)
           l2_entry -> dirty = true;
+
+        else {
+
+          tlb_entry_t* tlb_l2_empty_entry = NULL;
+          tlb_entry_t* tlb_l2_LRU_entry = NULL;
+
+          // Search for empty entry and LRU
+          for (size_t i = 0; i < TLB_L2_SIZE; i++)
+          {
+            // Get empty entry
+            if (!tlb_l2[i].valid) {
+              *tlb_l2_empty_entry = tlb_l2[i];
+              break;
+            }
+            
+            // Get oldest access entry
+            else if (!tlb_l2_LRU_entry || tlb_l2[i].last_access < tlb_l2_LRU_entry -> last_access) {
+              *tlb_l2_LRU_entry = tlb_l2[i];
+            }
+          }
+
+          add_entry_to_tlb(false, tlb_l2_empty_entry, tlb_l2_LRU_entry, tlb_LRU_entry -> virtual_page_number,
+                            tlb_LRU_entry -> physical_page_number, tlb_LRU_entry -> last_access, tlb_LRU_entry -> dirty);
+        }
           
       } else {
         
