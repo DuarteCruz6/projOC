@@ -1,0 +1,51 @@
+    .data
+A:  .word 1,2,3,4,5,6,7,8,9
+    .word 10,11,12,13,14,15,16
+B:  .word 11,22,33,44,55,66,77
+    .word 88,99,111,122,133
+    .word 144,155,166
+C:  .word 0,0,0,0,0,0,0,0,0
+    .word 0,0,0,0,0,0,0
+
+    .text
+main:
+    la s3, A           # base of A
+    la s4, B           # base of B
+    la s5, C           # base of C
+    addi s1, zero, 0   # i = 0
+    addi s2, zero, 16  # value of N
+    
+loop: 
+    lw t2, 0(s4)
+    lw t1, 0(s3)
+    addi t3, t2, 1
+    mul t3, t3, t1
+    sw t3, 0(s5)
+    
+    lw t2, 4(s4)
+    lw t1, 4(s3)
+    addi t3, t2, 1
+    mul t3, t3, t1
+    sw t3, 4(s5)
+    
+    lw t2, 8(s4)
+    lw t1, 8(s3)
+    addi t3, t2, 1
+    mul t3, t3, t1
+    sw t3, 8(s5)
+    
+    lw t2, 12(s4)
+    lw t1, 12(s3)
+    addi t3, t2, 1
+    mul t3, t3, t1
+    sw t3, 12(s5)
+    
+    addi s1, s1, 4
+    addi s3, s3, 16
+    addi s4, s4, 16
+    addi s5, s5, 16
+    bne s1, s2, loop
+    
+end:
+    addi a7, zero, 10
+    ecall             # Exit (syscall)
