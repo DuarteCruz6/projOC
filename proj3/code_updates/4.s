@@ -32,7 +32,6 @@ loop:
     lw t2, 8(s4)
     add t3, t3, t1
     mul t3, t2, t1
-
     sw t3, 8(s5)
 
     lw t1, 12(s3)
