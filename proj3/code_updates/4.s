@@ -18,26 +18,26 @@ main:
 loop: 
     lw t1, 0(s3)
     lw t2, 0(s4)
-    add t3, t3, t1
-    mul t3, t2, t1
+    addi t3, t2, 1
+    mul t3, t3, t1
     sw t3, 0(s5)
 
     lw t1, 4(s3)
     lw t2, 4(s4)
-    add t3, t3, t1
-    mul t3, t2, t1
+    addi t3, t2, 1
+    mul t3, t3, t1
     sw t3, 4(s5)
 
     lw t1, 8(s3)
     lw t2, 8(s4)
-    add t3, t3, t1
-    mul t3, t2, t1
+    addi t3, t2, 1
+    mul t3, t3, t1
     sw t3, 8(s5)
 
     lw t1, 12(s3)
     lw t2, 12(s4)
-    add t3, t3, t1
-    mul t3, t2, t1
+    addi t3, t2, 1
+    mul t3, t3, t1
     sw t3, 12(s5)
 
     addi s5, s5, 16
