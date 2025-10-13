@@ -15,44 +15,36 @@ main:
     la s4, B           # base of B
     la s5, C           # base of C
     
-loop:     
+loop: 
     lw t1, 0(s3)
     lw t2, 0(s4)
-    
-    
-    addi s1, s1, 1
-    mul t3, t2, t1
-    addi s3, s3, 4
     add t3, t3, t1
-    addi s4, s4, 4
-    addi s5, s5, 4
+    mul t3, t2, t1
     sw t3, 0(s5)
 
-    addi s1, s1, 1
-    mul t3, t2, t1
-    addi s3, s3, 4
+    lw t1, 4(s3)
+    lw t2, 4(s4)
     add t3, t3, t1
-    addi s4, s4, 4
-    addi s5, s5, 4
-    sw t3, 0(s5)
-    
-    addi s1, s1, 1
     mul t3, t2, t1
-    addi s3, s3, 4
+    sw t3, 4(s5)
+
+    lw t1, 8(s3)
+    lw t2, 8(s4)
     add t3, t3, t1
-    addi s4, s4, 4
-    addi s5, s5, 4
-    sw t3, 0(s5)
-    
-    addi s1, s1, 1
     mul t3, t2, t1
-    addi s3, s3, 4
+
+    sw t3, 8(s5)
+
+    lw t1, 12(s3)
+    lw t2, 12(s4)
     add t3, t3, t1
-    addi s4, s4, 4
-    addi s5, s5, 4
-    sw t3, 0(s5)
-    
-    
+    mul t3, t2, t1
+    sw t3, 12(s5)
+
+    addi s5, s5, 16
+    addi s4, s4, 16
+    addi s3, s3, 16
+    addi s1, s1, 4
     bne s1, s2, loop
     
 end:
