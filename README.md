@@ -1,9 +1,9 @@
 # NOTA FINAL DOS PROJETOS - xxx
-## PROJ 1 - 95/100
+## PROJ 1 - 5/5
 
-## PROJ 2 - 100/100
+## PROJ 2 - 10/10
 
-## PROJ 3 - 100/100
+## PROJ 3 - 5/5
 
 ## Teste Prático
 
